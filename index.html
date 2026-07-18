@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Redirecionando para o WhatsApp</title>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    .container {
+      width: min(90%, 460px);
+      padding: 32px;
+      background: #fff;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 20px;
+      border: 4px solid #ddd;
+      border-top-color: #222;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    button {
+      display: none;
+      margin: 20px auto 0;
+      padding: 14px 20px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <div class="spinner"></div>
+
+    <h1>Abrindo o WhatsApp</h1>
+
+    <p id="status">
+      Aguarde alguns segundos.
+    </p>
+
+    <button id="continueButton">
+      Continuar para o WhatsApp
+    </button>
+  </main>
+
+  <script>
+    /*
+     * CONFIGURAÇÕES
+     */
+
+    const CONFIG = {
+      whatsappNumber: '5514997755489',
+
+      appsScriptUrl:
+        'https://script.google.com/macros/s/AKfycbzopSpX26Jx3xbDciQJ9NCyfuzClGI7MfChpjRDc_bFEeg0hcsJik0ZPgo5ao9e9ngQVA/exec',
+
+      defaultMessage:
+        'Olá, gostaria de mais informações.',
+
+      redirectDelay: 800
+    };
+
+    /*
+     * FUNÇÕES AUXILIARES
+     */
+
+    function generateTrackingCode() {
+      const timestamp = Date.now().toString(36).toUpperCase();
+
+      const randomPart = crypto
+        .getRandomValues(new Uint32Array(1))[0]
+        .toString(36)
+        .toUpperCase()
+        .substring(0, 5);
+
+      return `${timestamp.slice(-5)}${randomPart}`.substring(0, 10);
+    }
+
+    function getUrlParameters() {
+      const searchParams = new URLSearchParams(window.location.search);
+
+      return {
+        utm_source: searchParams.get('utm_source') || '',
+        utm_medium: searchParams.get('utm_medium') || '',
+        utm_campaign: searchParams.get('utm_campaign') || '',
+        utm_term: searchParams.get('utm_term') || '',
+        utm_content: searchParams.get('utm_content') || '',
+        campaign_id: searchParams.get('campaign_id') || '',
+        adset_id: searchParams.get('adset_id') || '',
+        ad_id: searchParams.get('ad_id') || '',
+        placement: searchParams.get('placement') || ''
+      };
+    }
+
+    function buildTrackingUrl(data) {
+      const params = new URLSearchParams({
+        ...data,
+        pagina: window.location.href.substring(0, 500),
+        user_agent: navigator.userAgent.substring(0, 500)
+      });
+
+      return `${CONFIG.appsScriptUrl}?${params.toString()}`;
+    }
+
+    function buildWhatsAppUrl(code) {
+      const message =
+        `${CONFIG.defaultMessage}\n\nCódigo: ${code}`;
+
+      return (
+        `https://wa.me/${CONFIG.whatsappNumber}` +
+        `?text=${encodeURIComponent(message)}`
+      );
+    }
+
+    function redirectToWhatsApp(url) {
+      window.location.href = url;
+    }
+
+    /*
+     * FLUXO PRINCIPAL
+     */
+
+    async function initializeTracking() {
+      const statusElement =
+        document.getElementById('status');
+
+      const continueButton =
+        document.getElementById('continueButton');
+
+      const code = generateTrackingCode();
+
+      const attribution = getUrlParameters();
+
+      const trackingData = {
+        codigo: code,
+        ...attribution
+      };
+
+      const whatsappUrl = buildWhatsAppUrl(code);
+
+      continueButton.onclick = () => {
+        redirectToWhatsApp(whatsappUrl);
+      };
+
+      try {
+        const trackingUrl =
+          buildTrackingUrl(trackingData);
+
+        /*
+         * no-cors é utilizado porque o Apps Script pode
+         * redirecionar internamente a requisição.
+         *
+         * Nesse modo não conseguimos ler a resposta,
+         * mas a requisição é enviada.
+         */
+        await fetch(trackingUrl, {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store'
+        });
+
+        statusElement.textContent =
+          'Registro realizado. Abrindo o WhatsApp...';
+
+        setTimeout(() => {
+          redirectToWhatsApp(whatsappUrl);
+        }, CONFIG.redirectDelay);
+
+      } catch (error) {
+        console.error('Erro no rastreamento:', error);
+
+        statusElement.textContent =
+          'Não foi possível registrar automaticamente. Clique para continuar.';
+
+        continueButton.style.display = 'block';
+      }
+    }
+
+    initializeTracking();
+  </script>
+</body>
+</html>
